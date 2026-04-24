@@ -23,7 +23,7 @@ const supabaseAdmin = createClient(
 );
 
 const MAILTESTER_API = 'https://happy.mailtester.ninja/ninja';
-const MAILTESTER_KEY = process.env.MAILTESTER_KEY;
+const MAILTESTER_KEY = (process.env.MAILTESTER_KEY || '').replace(/^[{]|[}]$/g, '');
 const RATE_LIMIT_MS = 91; // ~11 emails per second for Pro plan (1000/91 ≈ 11)
 
 // Initialize database tables on startup
