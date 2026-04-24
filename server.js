@@ -227,6 +227,64 @@ app.get('/download/:uploadId', async (req, res) => {
   }
 });
 
+// Endpoint: Process pending emails from Supabase
+app.post('/process-pending', async (req, res) => {
+  try {
+    const { limit = 10 } = req.body;
+
+    console.log(`Processing ${limit} pending emails...`);
+
+    // Get pending emails from Supabase
+    const { data: pendingEmails, error: fetchError } = await supabase
+      .from('pending_emails')
+      .select('*')
+      .eq('status', 'pending')
+      .limit(limit);
+
+    if (fetchError) {
+      return res.status(500).json({ error: fetchError.message });
+    }
+
+    if (!pendingEmails || pendingEmails.length === 0) {
+      return res.json({ message: 'No pending emails to process', processed: 0 });
+    }
+
+    let processed = 0;
+    const results = [];
+
+    // Verify each email
+    for (const record of pendingEmails) {
+      const result = await verifyEmail(record.email);
+      results.push(result);
+
+      // Update Supabase with verification result
+      await supabase
+        .from('pending_emails')
+        .update({
+          status: 'verified',
+          verification_code: result.code,
+          verification_message: result.message,
+          verified_at: new Date().toISOString()
+        })
+        .eq('id', record.id);
+
+      processed++;
+      console.log(`[${processed}/${pendingEmails.length}] Verified: ${record.email} - ${result.code}`);
+
+      // Rate limiting
+      await new Promise((resolve) => setTimeout(resolve, RATE_LIMIT_MS));
+    }
+
+    res.json({
+      processed,
+      total: pendingEmails.length,
+      results
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'ok' });
