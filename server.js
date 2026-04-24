@@ -17,67 +17,23 @@ const supabase = createClient(
   process.env.SUPABASE_KEY
 );
 
-const supabaseAdmin = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_KEY
-);
-
 const MAILTESTER_API = 'https://happy.mailtester.ninja/ninja';
 const MAILTESTER_KEY = (process.env.MAILTESTER_KEY || '').replace(/^[{]|[}]$/g, '');
 const RATE_LIMIT_MS = 91; // ~11 emails per second for Pro plan (1000/91 ≈ 11)
 
-// Initialize database tables on startup
+// Initialize database connection check
 async function initializeDatabase() {
   try {
-    console.log('Checking database tables...');
-
-    // Test if tables exist
+    console.log('Checking database connection...');
     const { error } = await supabase.from('batches').select().limit(1);
 
-    if (error && error.code === '42P01') {
-      console.log('Creating tables...');
-
-      const sql = `
-        CREATE TABLE IF NOT EXISTS batches (
-          id TEXT PRIMARY KEY,
-          total_emails INT NOT NULL,
-          status TEXT DEFAULT 'processing',
-          created_at TIMESTAMP DEFAULT NOW(),
-          completed_at TIMESTAMP
-        );
-
-        CREATE TABLE IF NOT EXISTS email_results (
-          id BIGSERIAL PRIMARY KEY,
-          batch_id TEXT NOT NULL REFERENCES batches(id),
-          email TEXT NOT NULL,
-          code TEXT,
-          message TEXT,
-          user TEXT,
-          domain TEXT,
-          mx TEXT,
-          created_at TIMESTAMP DEFAULT NOW()
-        );
-
-        CREATE INDEX IF NOT EXISTS idx_batch_id ON email_results(batch_id);
-        CREATE INDEX IF NOT EXISTS idx_email ON email_results(email);
-        CREATE INDEX IF NOT EXISTS idx_batch_status ON batches(status);
-      `;
-
-      // Execute SQL using admin client
-      const { error: sqlError } = await supabaseAdmin.rpc('execute_sql', { sql_query: sql });
-
-      if (sqlError) {
-        console.log('Tables may already exist or requires manual setup');
-      } else {
-        console.log('✓ Tables created successfully');
-      }
-    } else if (!error) {
-      console.log('✓ Database tables already exist');
+    if (!error || error.code !== '42P01') {
+      console.log('✓ Database connection successful');
     } else {
-      console.log('Database check result:', error);
+      console.log('⚠ Tables may not exist - please create them in Supabase SQL Editor');
     }
   } catch (error) {
-    console.error('Error initializing database:', error.message);
+    console.error('⚠ Database check failed:', error.message);
   }
 }
 
